@@ -10,6 +10,9 @@ const minA = 8.5e-20
 const maxT = 1.0
 const minT = -25.0
 
+# global AH_min = 0.0
+# global AH_max = 0.0
+
 # From Cuffey and Paterson
 const A_values_sec = [0.0 -2.0 -5.0 -10.0 -15.0 -20.0 -25.0 -30.0 -35.0 -40.0 -45.0 -50.0;
                               2.4e-24 1.7e-24 9.3e-25 3.5e-25 2.1e-25 1.2e-25 6.8e-26 3.7e-26 2.0e-26 1.0e-26 5.2e-27 2.6e-27] # s⁻¹Pa⁻³
@@ -20,6 +23,8 @@ overwrite_climate = false          # Force re-computing climate data for glacie
 # loss_type = "H"                   # Loss function based on ice thickness
 loss_type = "V"                   # Loss function based on ice surface velocities
 # loss_type = "HV"                    # Combined loss function based on ice surface velocities and ice thickness
+# UDE_choice = "A"
+UDE_choice = "rheology"
 const random_sampling_loss = false  # Use random subset of matrix samples for the loss
 const scale_loss = true
 const noise = true                  # Add random noise to fake A law

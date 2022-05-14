@@ -16,8 +16,8 @@ using Distributed
 using JLD2
 using JLD, PyCallJLD
 
-create_ref_dataset = true          # Run reference PDE to generate reference dataset
-retrain = true                     # Re-use previous NN weights to continue training
+create_ref_dataset = false          # Run reference PDE to generate reference dataset
+retrain = false                     # Re-use previous NN weights to continue training
 
 tspan = (0.0,5.0) # period in years for simulation
 processes = 16
@@ -41,7 +41,7 @@ function run()
     #########################################
 
     # Process climate data for glaciers
-    gdirs_climate = get_gdirs_with_climate(gdirs, tspan, overwrite=false, plot=true)
+    gdirs_climate = get_gdirs_with_climate(gdirs, tspan, overwrite=false, plot=false)
 
     # Run forward model for selected glaciers
     if create_ref_dataset 

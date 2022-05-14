@@ -90,20 +90,22 @@ end
 callback = function (θ, l, UA) # callback function to observe training
     println("Epoch #$current_epoch - Loss $loss_type: ", l)
 
-    pred_A = predict_A̅(UA, θ, collect(-20.0:0.0)')
-    pred_A = [pred_A...] # flatten
-    true_A = A_fake(-20.0:0.0, noise)
+    if UDE_choice == "A"
+        pred_A = predict_A̅(UA, θ, collect(-20.0:0.0)')
+        pred_A = [pred_A...] # flatten
+        true_A = A_fake(-20.0:0.0, noise)
 
-    Plots.scatter(-20.0:0.0, true_A, label="True A")
-    plot_epoch = Plots.plot!(-20.0:0.0, pred_A, label="Predicted A", 
-                        xlabel="Long-term air temperature (°C)",
-                        ylabel="A", ylims=(minA,maxA),
-                        legend=:topleft)
-    Plots.savefig(plot_epoch,joinpath(root_plots,"training","epoch$current_epoch.png"))
+        Plots.scatter(-20.0:0.0, true_A, label="True A")
+        plot_epoch = Plots.plot!(-20.0:0.0, pred_A, label="Predicted A", 
+                            xlabel="Long-term air temperature (°C)",
+                            ylabel="A", ylims=(minA,maxA),
+                            legend=:topleft)
+        Plots.savefig(plot_epoch,joinpath(root_plots,"training","epoch$current_epoch.png"))
+    end
     global current_epoch += 1
     push!(loss_history, l)
 
-    false
+    return false
 end
 
 """
@@ -184,6 +186,9 @@ function loss_iceflow(θ, UA, gdirs_climate, context_batches, PDE_refs::Dict{Str
     elseif loss_type == "HV"
         l_avg = (l_Vx/length(PDE_refs["V̄x_refs"]) + l_Vy/length(PDE_refs["V̄y_refs"]) + l_H/length(PDE_refs["H_refs"]))/3
     end
+
+    println("l_avg: ", l_avg)
+
     return l_avg, UA
 end
 
@@ -210,7 +215,9 @@ function batch_iceflow_UDE(θ, UA, context, longterm_temps_batch, solver)
     # Retrieve long-term temperature series
     H = context[3]
     tspan = context[6]
-    iceflow_UDE_batch(H, θ, t) = iceflow_NN(H, θ, t, UA, context, longterm_temps_batch) # closure
+    H₀ = context[2]
+    A_Hs = [predict_rheology(UA, θ, H₀, n, temp) for temp in longterm_temps_batch]
+    iceflow_UDE_batch(H, θ, t) = iceflow_NN(H, θ, t, UA, context, longterm_temps_batch, A_Hs) # closure
     iceflow_prob = ODEProblem(iceflow_UDE_batch,H,tspan,θ)
     iceflow_sol = solve(iceflow_prob, solver, u0=H, p=θ,
                     reltol=1e-6, save_everystep=false, 
@@ -251,19 +258,31 @@ end
 
 Runs a single time step of the iceflow UDE model 
 """
-function iceflow_NN(H, θ, t, UA, context, temps)
+function iceflow_NN(H, θ, t, UA, context, temps, A_Hs)
 
     year = floor(Int, t) + 1
     t₁ = context[6][end]
     if year <= t₁
         temp = temps[year]
+        A_H = A_Hs[year]
+        # println("A_H: ", A_H)
     else
         temp = temps[year-1]
+        A_H = A_Hs[year-1]
     end
-    A = predict_A̅(UA, θ, [temp]) # FastChain prediction requires explicit parameters
+    if UDE_choice == "A"
+        A = predict_A̅(UA, θ, [temp]) # FastChain prediction requires explicit parameters
+        dH = SIA(H, A, context)
+    elseif UDE_choice == "rheology"
+        dH = SIA(H, A_H, context)
+        # if year >= 4
+        #     println(" --- year: ", year, " ---")
+        #     println("dH max: ", maximum(dH))
+        # end
+    end
 
     # Compute the Shallow Ice Approximation in a staggered grid
-    return SIA(H, A, context)
+    return dH
 end  
 
 """
@@ -331,8 +350,13 @@ function SIA(H, A, context)
     dSdy = diff_y(S) ./ Δy
     ∇S = (avg_y(dSdx).^2.0 .+ avg_x(dSdy).^2.0).^((n - 1.0)/2.0) 
 
-    Γ = 2.0 * A * (ρ * g)^n / (n+2.0) # 1 / m^3 s 
-    D = Γ .* avg(H).^(n + 2.0) .* ∇S
+    if UDE_choice == "A"
+        Γ = 2.0 * A * (ρ * g)^n / (n+2.0) # 1 / m^3 s 
+        D = Γ .* avg(H).^(n + 2.0) .* ∇S
+    elseif UDE_choice == "rheology"
+        A_H = A
+        D = A_H .* 2.0 * (ρ * g)^n / (n+2.0) .* ∇S  ## Try different combinations of H outside the NN
+    end
 
     # Compute flux components
     dSdx_edges = diff_x(S[:,2:end - 1]) ./ Δx
@@ -366,12 +390,21 @@ function avg_surface_V(context, H, temp, sim, θ=[], UA=[])
     
     @assert (sim == "UDE" || sim == "PDE") "Wrong type of simulation. Needs to be 'UDE' or 'PDE'."
     if sim == "UDE"
-        A = predict_A̅(UA, θ, [temp]) # FastChain prediction requires explicit parameters
+        if UDE_choice == "A"
+            A = predict_A̅(UA, θ, [temp]) # FastChain prediction requires explicit parameters
+        elseif UDE_choice == "rheology"
+            A_H = predict_rheology(UA, θ, H, n, temp)
+        end
     elseif sim == "PDE"
         A = A_fake(temp, noise)
     end
-    Γꜛ = 2.0 * A * (ρ * g)^n / (n+1.0) # surface stress (not average)  # 1 / m^3 s 
-    D = Γꜛ .* avg(H).^(n + 1.0) .* ∇S
+    
+    if UDE_choice == "A" || sim == "PDE"
+        Γꜛ = 2.0 * A * (ρ * g)^n / (n+1.0) # surface stress (not average)  # 1 / m^3 s 
+        D = Γꜛ .* avg(H).^(n + 1.0) .* ∇S
+    elseif UDE_choice == "rheology"
+        D = A_H .* 2.0 * (ρ * g)^n / (n+1.0) .* ∇S
+    end
     
     # Compute averaged surface velocities
     Vx = - D .* avg_y(dSdx)
@@ -405,6 +438,11 @@ Predicts the value of A with a neural network based on the long-term air tempera
 """
 function predict_A̅(UA, θ, temp)
     return UA(temp, θ) .* 1e-17
+end
+
+function predict_rheology(Ur, θ, H, n, temp)
+    avg_H = avg(H)
+    return [sigmoid_AH(10^Ur([h,n,temp], θ)[1]) for h in avg_H]
 end
 
 # function fake_temp_series(t, means=Array{Float64}([0.0,-2.0,-3.0,-5.0,-10.0,-12.0,-14.0,-15.0,-20.0]))
@@ -509,12 +547,22 @@ end
 Generates a neural network.
 """
 function get_NN(θ_trained)
-    UA = FastChain(
-        FastDense(1,3, x->softplus.(x)),
-        FastDense(3,10, x->softplus.(x)),
-        FastDense(10,3, x->softplus.(x)),
-        FastDense(3,1, sigmoid_A)
-    )
+    if UDE_choice == "A"
+        UA = FastChain(
+            FastDense(1,3, x->softplus.(x)),
+            FastDense(3,10, x->softplus.(x)),
+            FastDense(10,3, x->softplus.(x)),
+            FastDense(3,1, sigmoid_A)
+        )
+    elseif UDE_choice == "rheology"
+        UA = FastChain(
+            FastDense(3,10, x->softplus.(x)),
+            FastDense(10,20, x->softplus.(x)),
+            FastDense(20,10, x->softplus.(x)),
+            FastDense(10,1, sigmoid_AH)
+        )
+    end
+
     # See if parameters need to be retrained or not
     if isempty(θ_trained)
         θ = initial_params(UA)
@@ -527,5 +575,11 @@ end
 function sigmoid_A(x) 
     minA_out = 8.5e-3 # /!\     # these depend on predict_A̅, so careful when changing them!
     maxA_out = 8.0
+    return minA_out + (maxA_out - minA_out) / ( 1.0 + exp(-x) )
+end
+
+function sigmoid_AH(x) 
+    minA_out = -1e-20 # /!\     # these depend on predict_rheology, so careful when changing them!
+    maxA_out = 10e-4
     return minA_out + (maxA_out - minA_out) / ( 1.0 + exp(-x) )
 end

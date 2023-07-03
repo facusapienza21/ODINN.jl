@@ -10,8 +10,8 @@ function make_plots(tspan, nglaciers)
     # plot_type = "only_H" # plot final H
     # plot_type = "initial_H" # plot final H
     # plot_type = "MB_diff" # differences between runs with different MB models
-    # plot_type = "H_diff" # H - H₀
-    plot_type = "V" # surface velocities
+    plot_type = "H_diff" # H - H₀
+    # plot_type = "V" # surface velocities
     # plot_type = "S"
     # tspan = (1990.0, 2015.0) # period in years for simulation
     # nglaciers = 5
@@ -74,15 +74,22 @@ function make_plots(tspan, nglaciers)
             cm=:viridis
             sym=false
         end
+
+        H_plot = ifelse.(H .> 0.001, H_plot, 0.0)
+
         push!(MBdiffs, H_plot)
         push!(hms_MBdiff, CairoMakie.heatmap!(ax, fillZeros(H_plot), colormap=cm))
     end
 
-    minMBdiff = minimum(minimum.(MBdiffs))
-    maxMBdiff = maximum(maximum.(MBdiffs))
+    # minMBdiff = minimum(minimum.(MBdiffs))
+    # maxMBdiff = maximum(maximum.(MBdiffs))
+    minMBdiff = minimum(abs.(maximum.(MBdiffs)))
+    maxMBdiff = maximum(abs.(maximum.(MBdiffs)))
+ 
     
     if sym
         rangeval = maximum([abs(minMBdiff), abs(maxMBdiff)])
+        rangeval = 10
         foreach(hms_MBdiff) do hm
             hm.colorrange = (-rangeval, rangeval)
         end

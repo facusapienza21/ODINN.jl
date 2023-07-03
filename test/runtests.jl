@@ -17,6 +17,7 @@ using Infiltrator
 ODINN.enable_multiprocessing(1) # Force one single worker
 
 include("PDE_UDE_solve.jl")
+include("halfar.jl")
 
 # Activate to avoid GKS backend Plot issues in the JupyterHub
 ENV["GKSwstype"]="nul"
@@ -27,5 +28,5 @@ atol = 0.01
 atol = 2.0
 @testset "PDE and UDE SIA solvers with MB" pde_solve_test(atol; MB=true, fast=true)
 
-# @testset "SIA UDE training" begin include("UDE_train.jl") end
+@testset "Halfar Solution" halfar_test(rtol=0.02, atol=1.0)
 

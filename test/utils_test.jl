@@ -1,21 +1,40 @@
 # -*- coding: utf-8 -*-
 """
+    is_border(A::Matrix, distance::Int)
+
+Return a matrix with booleans indicating if a given pixel is at distance at most `distance` of the end of the 
+matrix, which is indicated by the first pixel value to reach zero. 
+
+Arguments:
+    - A: Array
+    - distance: distance to the border, computed as the number of pixels we need to move to find a pixel with value zero
+"""
+function is_border(A::Matrix{F}, distance::Int) where {F <: AbstractFloat}
+    B = copy(A) 
+    for i in 1:distance
+        B .= min.(B, circshift(B, (1,0)), circshift(B, (-1,0)), circshift(B, (0,1)), circshift(B, (0,-1)))
+    end
+    return B .> 0.001 
+end
+
+"""
     halfar_solution(t, r, θ)
 
 Returns the evaluation of the Halfar solutions for the SIA equation. 
 
 Arguments:
+    - r: radial distance. The solutions have polar symmetry around the center of origin.
     - t: time
-    - r: radial distance. The solutions have polar symmetry around the center of origin
     - ν = (A, H₀, R₀) 
 """
-function halfar_solution(t, r, ν)
+function halfar_solution(r, t, ν)
 
     # parameters of Halfar solutions
     A, h₀, r₀ = ν 
 
     Γ = 2 * A * (ρ * g)^n / (n+2)
-    τ₀ = (7/4)^3 * r₀^4 / ( 18 * Γ * h₀^7 )   # characteristic time
+    # Characteristic time
+    τ₀ = (7/4)^3 * r₀^4 / ( 18 * Γ * h₀^7 )   
 
     if r₀ * (t/τ₀)^(1/18) <= r
         return 0.0

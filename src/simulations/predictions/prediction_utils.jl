@@ -22,7 +22,7 @@ function batch_iceflow_PDE(glacier_idx::Int, simulation::Prediction)
     model = simulation.model
     params = simulation.parameters
     glacier = simulation.glaciers[glacier_idx]
-    println("Processing glacier: ", glacier.gdir.rgi_id)
+    # println("Processing glacier: ", glacier.gdir.rgi_id)
 
     # Initialize glacier ice flow model
     initialize_iceflow_model!(model.iceflow, glacier_idx, glacier, params)

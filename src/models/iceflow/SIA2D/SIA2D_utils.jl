@@ -72,10 +72,10 @@ function SIA2D!(dH::Matrix{F}, H::Matrix{F}, simulation::SIM, t::F) where {F <: 
     # imporse boundary condition of the SIA equation
     @timeit get_timer("ODINN") "Capping flux" begin
     η₀ = params.physical.η₀
-    dSdx_edges .= @views @. min(dSdx_edges,  η₀ * H[1:end-1, 2:end-1]/Δx,  η₀ * H[2:end, 2:end-1]/Δx)
-    dSdy_edges .= @views @. min(dSdy_edges,  η₀ * H[2:end-1, 1:end-1]/Δy,  η₀ * H[2:end-1, 2:end]/Δy) 
-    dSdx_edges .= @views @. max(dSdx_edges, -η₀ * H[1:end-1, 2:end-1]/Δx, -η₀ * H[2:end, 2:end-1]/Δx)
-    dSdy_edges .= @views @. max(dSdy_edges, -η₀ * H[2:end-1, 1:end-1]/Δy, -η₀ * H[2:end-1, 2:end]/Δy)
+    dSdx_edges .= @views @. min(dSdx_edges,  η₀ * H[2:end, 2:end-1]/Δx)
+    dSdx_edges .= @views @. max(dSdx_edges, -η₀ * H[1:end-1, 2:end-1]/Δx)
+    dSdy_edges .= @views @. min(dSdy_edges,  η₀ * H[2:end-1, 2:end]/Δy)
+    dSdy_edges .= @views @. max(dSdy_edges, -η₀ * H[2:end-1, 1:end-1]/Δy)
     end
 
     @timeit get_timer("ODINN") "Flux" begin

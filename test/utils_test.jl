@@ -27,18 +27,26 @@ Arguments:
     - t: time
     - ν = (A, H₀, R₀) 
 """
-function halfar_solution(r, t, ν)
+function halfar_solution(R, t, h₀, r₀, physical_parameters::PhysicalParameters)
 
     # parameters of Halfar solutions
-    A, h₀, r₀ = ν 
+    ρ = physical_parameters.ρ
+    g = physical_parameters.g
+    n = physical_parameters.n
+    A = physical_parameters.A
 
     Γ = 2 * A * (ρ * g)^n / (n+2)
     # Characteristic time
     τ₀ = (7/4)^3 * r₀^4 / ( 18 * Γ * h₀^7 )   
 
-    if r₀ * (t/τ₀)^(1/18) <= r
-        return 0.0
-    else
-        return h₀ * (τ₀/t)^(1/9) * ( 1 - ( (τ₀/t)^(1/18) * (r/r₀) )^(4/3) )^(3/7)
-    end
+    return [r <= r₀ * (t/τ₀)^(1/18) ? 
+            h₀ * (τ₀/t)^(1/9) * ( 1 - ( (τ₀/t)^(1/18) * (r/r₀) )^(4/3) )^(3/7) :
+            0.0 
+            for r in R]
+
+    # if r₀ * (t/τ₀)^(1/18) <= r
+    #     return 0.0
+    # else
+    #     return h₀ * (τ₀/t)^(1/9) * ( 1 - ( (τ₀/t)^(1/18) * (r/r₀) )^(4/3) )^(3/7)
+    # end
 end
